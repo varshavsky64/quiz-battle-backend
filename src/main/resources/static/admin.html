@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Battle — Admin</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f1117;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #a78bfa;
+            margin-bottom: 28px;
+            letter-spacing: -0.5px;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            gap: 24px;
+            max-width: 1200px;
+        }
+
+        .card {
+            background: #1e2130;
+            border: 1px solid #2d3148;
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        select {
+            width: 100%;
+            background: #0f1117;
+            border: 1px solid #2d3148;
+            border-radius: 8px;
+            color: #e2e8f0;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        textarea:focus,
+        select:focus {
+            border-color: #7c3aed;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 70px;
+        }
+
+        .answer-block {
+            background: #161926;
+            border: 1px solid #2d3148;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .answer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .answer-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #7c3aed;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .correct-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            user-select: none;
+        }
+
+        .correct-toggle input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #22c55e;
+            cursor: pointer;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+            font-family: inherit;
+        }
+
+        .btn:hover { opacity: 0.85; }
+        .btn:active { transform: scale(0.97); }
+
+        .btn-primary { background: #7c3aed; color: #fff; }
+        .btn-danger  { background: #dc2626; color: #fff; padding: 6px 12px; font-size: 0.8rem; }
+        .btn-edit    { background: #2563eb; color: #fff; padding: 6px 12px; font-size: 0.8rem; }
+        .btn-sm-cancel { background: #374151; color: #e2e8f0; padding: 8px 16px; }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e2130;
+            border: 1px solid #2d3148;
+            border-radius: 10px;
+            padding: 14px 20px;
+            font-size: 0.9rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            z-index: 1000;
+            transform: translateY(80px);
+            opacity: 0;
+            transition: transform 0.3s, opacity 0.3s;
+        }
+
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.success { border-color: #22c55e; color: #22c55e; }
+        .toast.error   { border-color: #dc2626; color: #ef4444; }
+
+        /* Table */
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        thead th {
+            text-align: left;
+            padding: 10px 12px;
+            color: #64748b;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #2d3148;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #1a1d2e;
+            transition: background 0.15s;
+        }
+
+        tbody tr:hover { background: #161926; }
+
+        tbody td {
+            padding: 12px;
+            vertical-align: top;
+        }
+
+        .q-text {
+            max-width: 380px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .difficulty-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .diff-1 { background: #14532d; color: #86efac; }
+        .diff-2 { background: #713f12; color: #fde68a; }
+        .diff-3 { background: #7f1d1d; color: #fca5a5; }
+
+        .answers-preview {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .ap-item {
+            font-size: 0.78rem;
+            color: #94a3b8;
+        }
+
+        .ap-correct {
+            color: #22c55e;
+            font-weight: 600;
+        }
+
+        .actions { display: flex; gap: 6px; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #475569;
+        }
+
+        .pagination {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .pagination button {
+            background: #1e2130;
+            border: 1px solid #2d3148;
+            border-radius: 6px;
+            color: #94a3b8;
+            padding: 6px 14px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.15s;
+        }
+
+        .pagination button:hover:not(:disabled) { background: #2d3148; }
+        .pagination button:disabled { opacity: 0.4; cursor: default; }
+        .pagination button.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+        }
+
+        .modal {
+            background: #1e2130;
+            border: 1px solid #2d3148;
+            border-radius: 14px;
+            padding: 28px;
+            width: 480px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal h2 {
+            font-size: 1rem;
+            color: #a78bfa;
+            margin-bottom: 20px;
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<h1>Quiz Battle — Admin Panel</h1>
+
+<div class="layout">
+    <!-- Add Question Form -->
+    <div class="card">
+        <h2>Add Question</h2>
+
+        <div class="form-group">
+            <label>Question Text</label>
+            <textarea id="qText" placeholder="Enter the question..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Difficulty</label>
+            <select id="qDifficulty">
+                <option value="1">1 — Easy</option>
+                <option value="2">2 — Medium</option>
+                <option value="3">3 — Hard</option>
+            </select>
+        </div>
+
+        <label style="margin-bottom: 10px; display:block">Answers (mark exactly one as correct)</label>
+
+        <div id="answersContainer">
+            <!-- 4 answer blocks injected by JS -->
+        </div>
+
+        <div class="btn-row">
+            <button class="btn btn-primary" onclick="submitQuestion()">Save Question</button>
+            <button class="btn btn-sm-cancel" onclick="resetForm()">Reset</button>
+        </div>
+    </div>
+
+    <!-- Questions Table -->
+    <div class="card">
+        <h2>All Questions <span id="totalCount" style="color:#475569; font-size:0.85rem; text-transform:none; letter-spacing:0"></span></h2>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Question</th>
+                        <th>Diff</th>
+                        <th>Answers</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="questionsBody">
+                    <tr><td colspan="5" class="empty-state">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination" id="paginationBar"></div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay hidden" id="editModal">
+    <div class="modal">
+        <h2>Edit Question</h2>
+
+        <div class="form-group">
+            <label>Question Text</label>
+            <textarea id="editText"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Difficulty</label>
+            <select id="editDifficulty">
+                <option value="1">1 — Easy</option>
+                <option value="2">2 — Medium</option>
+                <option value="3">3 — Hard</option>
+            </select>
+        </div>
+
+        <label style="margin-bottom: 10px; display:block">Answers</label>
+        <div id="editAnswersContainer"></div>
+
+        <div class="btn-row">
+            <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+            <button class="btn btn-sm-cancel" onclick="closeEdit()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+    const API = '/admin/questions';
+    let currentPage = 0;
+    let totalPages = 0;
+    let editingId = null;
+
+    // ── Bootstrap answer inputs ──────────────────────────────────────────────
+
+    function buildAnswerBlock(container, idx, data = {}) {
+        const div = document.createElement('div');
+        div.className = 'answer-block';
+        div.innerHTML = `
+            <div class="answer-header">
+                <span class="answer-label">Answer ${idx + 1}</span>
+                <label class="correct-toggle">
+                    <input type="checkbox" class="correct-cb" data-idx="${idx}" onchange="onCorrectChange(this, '${container.id}')">
+                    Correct
+                </label>
+            </div>
+            <input type="text" class="ans-text" placeholder="Answer text..." value="${escHtml(data.text || '')}">
+        `;
+        if (data.correct) div.querySelector('.correct-cb').checked = true;
+        container.appendChild(div);
+    }
+
+    function initAnswerBlocks(containerId, answers = []) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        for (let i = 0; i < 4; i++) {
+            buildAnswerBlock(container, i, answers[i] || {});
+        }
+    }
+
+    function onCorrectChange(cb, containerId) {
+        if (!cb.checked) return;
+        // Uncheck others
+        document.querySelectorAll(`#${containerId} .correct-cb`).forEach(other => {
+            if (other !== cb) other.checked = false;
+        });
+    }
+
+    function collectAnswers(containerId) {
+        const blocks = document.querySelectorAll(`#${containerId} .answer-block`);
+        return Array.from(blocks).map((b, i) => ({
+            text: b.querySelector('.ans-text').value.trim(),
+            correct: b.querySelector('.correct-cb').checked,
+            position: i
+        }));
+    }
+
+    // ── Submit new question ─────────────────────────────────────────────────
+
+    async function submitQuestion() {
+        const text = document.getElementById('qText').value.trim();
+        const difficulty = parseInt(document.getElementById('qDifficulty').value);
+        const answers = collectAnswers('answersContainer');
+
+        if (!text) { showToast('Question text is required', 'error'); return; }
+        if (answers.some(a => !a.text)) { showToast('All answer fields are required', 'error'); return; }
+        if (!answers.some(a => a.correct)) { showToast('Mark one answer as correct', 'error'); return; }
+
+        try {
+            const res = await fetch(API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, difficulty, answers })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            showToast('Question saved!', 'success');
+            resetForm();
+            loadPage(currentPage);
+        } catch (e) {
+            showToast('Error: ' + e.message, 'error');
+        }
+    }
+
+    function resetForm() {
+        document.getElementById('qText').value = '';
+        document.getElementById('qDifficulty').value = '1';
+        initAnswerBlocks('answersContainer');
+    }
+
+    // ── Load & render questions ─────────────────────────────────────────────
+
+    async function loadPage(page) {
+        currentPage = page;
+        try {
+            const res = await fetch(`${API}?page=${page}&size=10`);
+            const data = await res.json();
+            totalPages = data.totalPages;
+            document.getElementById('totalCount').textContent = `(${data.totalElements} total)`;
+            renderTable(data.content);
+            renderPagination(data.totalPages, page);
+        } catch (e) {
+            document.getElementById('questionsBody').innerHTML =
+                `<tr><td colspan="5" class="empty-state">Failed to load questions</td></tr>`;
+        }
+    }
+
+    function renderTable(questions) {
+        const tbody = document.getElementById('questionsBody');
+        if (!questions.length) {
+            tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No questions yet. Add one!</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = questions.map(q => {
+            const answersHtml = q.answers.map(a =>
+                `<div class="ap-item ${a.correct ? 'ap-correct' : ''}">
+                    ${a.correct ? '✓ ' : ''}${escHtml(a.text)}
+                </div>`
+            ).join('');
+
+            return `<tr>
+                <td style="color:#475569">${q.id}</td>
+                <td><div class="q-text" title="${escHtml(q.text)}">${escHtml(q.text)}</div></td>
+                <td><span class="difficulty-badge diff-${q.difficulty}">${q.difficulty}</span></td>
+                <td><div class="answers-preview">${answersHtml}</div></td>
+                <td>
+                    <div class="actions">
+                        <button class="btn btn-edit" onclick="openEdit(${q.id})">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteQuestion(${q.id})">Del</button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function renderPagination(total, current) {
+        const bar = document.getElementById('paginationBar');
+        if (total <= 1) { bar.innerHTML = ''; return; }
+
+        let html = `<button onclick="loadPage(${current - 1})" ${current === 0 ? 'disabled' : ''}>‹ Prev</button>`;
+        for (let i = 0; i < total; i++) {
+            html += `<button class="${i === current ? 'active' : ''}" onclick="loadPage(${i})">${i + 1}</button>`;
+        }
+        html += `<button onclick="loadPage(${current + 1})" ${current === total - 1 ? 'disabled' : ''}>Next ›</button>`;
+        bar.innerHTML = html;
+    }
+
+    // ── Delete ──────────────────────────────────────────────────────────────
+
+    async function deleteQuestion(id) {
+        if (!confirm('Delete this question? This cannot be undone.')) return;
+        try {
+            const res = await fetch(`${API}/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error(await res.text());
+            showToast('Question deleted', 'success');
+            loadPage(currentPage);
+        } catch (e) {
+            showToast('Error: ' + e.message, 'error');
+        }
+    }
+
+    // ── Edit Modal ──────────────────────────────────────────────────────────
+
+    async function openEdit(id) {
+        editingId = id;
+        try {
+            // Fetch fresh from list (we already have it in DOM, but let's be safe)
+            const res = await fetch(`${API}?page=0&size=1000`);
+            const data = await res.json();
+            const q = data.content.find(x => x.id === id);
+            if (!q) { showToast('Question not found', 'error'); return; }
+
+            document.getElementById('editText').value = q.text;
+            document.getElementById('editDifficulty').value = String(q.difficulty);
+
+            // Sort answers by position then fill
+            const sorted = [...q.answers].sort((a, b) => a.position - b.position);
+            // Pad to 4
+            while (sorted.length < 4) sorted.push({ text: '', correct: false, position: sorted.length });
+            initAnswerBlocks('editAnswersContainer', sorted);
+
+            document.getElementById('editModal').classList.remove('hidden');
+        } catch (e) {
+            showToast('Error loading question: ' + e.message, 'error');
+        }
+    }
+
+    function closeEdit() {
+        document.getElementById('editModal').classList.add('hidden');
+        editingId = null;
+    }
+
+    async function saveEdit() {
+        const text = document.getElementById('editText').value.trim();
+        const difficulty = parseInt(document.getElementById('editDifficulty').value);
+        const answers = collectAnswers('editAnswersContainer');
+
+        if (!text) { showToast('Question text is required', 'error'); return; }
+        if (answers.some(a => !a.text)) { showToast('All answer fields are required', 'error'); return; }
+        if (!answers.some(a => a.correct)) { showToast('Mark one answer as correct', 'error'); return; }
+
+        try {
+            const res = await fetch(`${API}/${editingId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, difficulty, answers })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            showToast('Question updated!', 'success');
+            closeEdit();
+            loadPage(currentPage);
+        } catch (e) {
+            showToast('Error: ' + e.message, 'error');
+        }
+    }
+
+    // Close modal on overlay click
+    document.getElementById('editModal').addEventListener('click', function(e) {
+        if (e.target === this) closeEdit();
+    });
+
+    // ── Toast ───────────────────────────────────────────────────────────────
+
+    let toastTimer;
+    function showToast(msg, type = 'success') {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.className = `toast ${type} show`;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    // ── Utils ───────────────────────────────────────────────────────────────
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // ── Init ────────────────────────────────────────────────────────────────
+
+    initAnswerBlocks('answersContainer');
+    loadPage(0);
+</script>
+</body>
+</html>

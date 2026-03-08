@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Quiz Battle</title>
+    <!-- STOMP (native WebSocket, no SockJS — Spring Boot 4 / Spring 7 dropped SockJS) -->
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:      #0f1117;
+            --surface: #1e2130;
+            --border:  #2d3148;
+            --accent:  #7c3aed;
+            --accent2: #a78bfa;
+            --text:    #e2e8f0;
+            --muted:   #94a3b8;
+            --dim:     #475569;
+            --green:   #22c55e;
+            --red:     #ef4444;
+            --yellow:  #f59e0b;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        #app {
+            width: 100%;
+            max-width: 520px;
+        }
+
+        /* ── Screens ────────────────────────────────────────────────── */
+        .screen { display: none; animation: fadeIn 0.3s ease; }
+        .screen.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Card ───────────────────────────────────────────────────── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent2);
+            margin-bottom: 6px;
+        }
+
+        .card-sub {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 28px;
+        }
+
+        /* ── Form ───────────────────────────────────────────────────── */
+        .form-group { margin-bottom: 18px; }
+
+        label.field-label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            padding: 12px 16px;
+            font-size: 1rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus { border-color: var(--accent); }
+
+        /* ── Buttons ────────────────────────────────────────────────── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 13px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+            font-family: inherit;
+            margin-bottom: 10px;
+        }
+
+        .btn:last-child { margin-bottom: 0; }
+        .btn:hover:not(:disabled) { opacity: 0.85; }
+        .btn:active:not(:disabled) { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.45; cursor: default; }
+
+        .btn-primary  { background: var(--accent); color: #fff; }
+        .btn-secondary { background: #2d3148; color: var(--text); }
+        .btn-green    { background: #166534; color: #bbf7d0; }
+        .btn-outline  { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+
+        .btn-answer {
+            display: block;
+            width: 100%;
+            padding: 14px 18px;
+            background: #1a1d2e;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-size: 0.95rem;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+            margin-bottom: 10px;
+            font-family: inherit;
+        }
+
+        .btn-answer:hover:not(.revealed) { border-color: var(--accent); background: #22264a; }
+        .btn-answer.selected  { border-color: var(--accent); background: #2e1f5e; }
+        .btn-answer.correct   { border-color: var(--green); background: #14532d; color: #bbf7d0; }
+        .btn-answer.wrong     { border-color: var(--red);   background: #7f1d1d; color: #fecaca; }
+        .btn-answer.revealed  { cursor: default; }
+
+        /* ── Divider ────────────────────────────────────────────────── */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--dim);
+            font-size: 0.8rem;
+            margin: 18px 0;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ── Stats Row ──────────────────────────────────────────────── */
+        .stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+        }
+
+        .stat-val {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent2);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+
+        /* ── Match Type Menu ────────────────────────────────────────── */
+        .match-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .match-card:hover { border-color: var(--accent); }
+
+        .match-card .mc-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .match-card .mc-desc {
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
+        /* ── Waiting Screen ─────────────────────────────────────────── */
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            margin: 0 auto 24px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Round Screen ───────────────────────────────────────────── */
+        .round-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .round-badge {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .timer-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .timer-bar-track {
+            width: 80px;
+            height: 6px;
+            background: var(--border);
+            border-radius: 99px;
+            overflow: hidden;
+        }
+
+        .timer-bar {
+            height: 100%;
+            background: var(--green);
+            border-radius: 99px;
+            transition: width 1s linear, background 0.5s;
+        }
+
+        .timer-val {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--accent2);
+            min-width: 20px;
+            text-align: right;
+        }
+
+        .question-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            line-height: 1.5;
+            margin-bottom: 24px;
+            color: var(--text);
+        }
+
+        .round-result-msg {
+            text-align: center;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            font-size: 1rem;
+        }
+
+        .result-correct { background: #14532d; color: #bbf7d0; }
+        .result-wrong   { background: #7f1d1d; color: #fecaca; }
+        .result-timeout { background: #1c1917; color: var(--muted); }
+
+        .opponent-status {
+            text-align: center;
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        /* ── Results Screen ─────────────────────────────────────────── */
+        .score-banner {
+            text-align: center;
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+
+        .score-banner.win  { background: #14532d; border: 1px solid #16a34a; }
+        .score-banner.lose { background: #7f1d1d; border: 1px solid #dc2626; }
+        .score-banner.draw { background: #1c1917; border: 1px solid #57534e; }
+        .score-banner.pending { background: #1e1b4b; border: 1px solid #4338ca; }
+
+        .score-banner .outcome {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .score-display {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .score-label { font-size: 0.82rem; color: var(--muted); }
+
+        /* ── Rounds comparison table ────────────────────────────────── */
+        .rounds-table {
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .rt-header {
+            display: grid;
+            grid-template-columns: 44px 1fr 1fr;
+            padding: 7px 12px;
+            background: var(--bg);
+            font-size: 0.72rem;
+            color: var(--dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .rt-row {
+            display: grid;
+            grid-template-columns: 44px 1fr 1fr;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+        }
+
+        .rt-row:last-child { border-bottom: none; }
+
+        .rt-num {
+            font-size: 0.75rem;
+            color: var(--dim);
+            font-weight: 600;
+        }
+
+        .rt-cell {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.82rem;
+        }
+
+        .rt-cell .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .rt-cell.correct { color: var(--green); }
+        .rt-cell.correct .dot { background: var(--green); }
+        .rt-cell.wrong   { color: var(--red); }
+        .rt-cell.wrong   .dot { background: var(--red); }
+        .rt-cell.timeout { color: var(--dim); }
+        .rt-cell.timeout .dot { background: var(--dim); }
+        .rt-cell.pending { color: var(--muted); font-style: italic; }
+
+        .waiting-opp {
+            text-align: center;
+            padding: 20px;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        /* ── Private room code input ────────────────────────────────── */
+        .code-input {
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+        }
+
+        .room-code-display {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: 8px;
+            color: var(--accent2);
+            padding: 20px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin: 16px 0;
+        }
+
+        /* ── Error ──────────────────────────────────────────────────── */
+        .error-msg {
+            color: var(--red);
+            font-size: 0.85rem;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .error-msg.show { display: block; }
+    </style>
+</head>
+<body>
+<div id="app">
+
+    <!-- ── Screen 1: Register ───────────────────────────────────────── -->
+    <div id="screen-register" class="screen active">
+        <div class="card">
+            <div class="card-title">Quiz Battle</div>
+            <div class="card-sub">Enter your name to start playing</div>
+
+            <div class="form-group">
+                <label class="field-label">Your Name</label>
+                <input type="text" id="nameInput" placeholder="e.g. Alice" maxlength="50"
+                       onkeydown="if(event.key==='Enter') register()">
+                <div class="error-msg" id="registerError"></div>
+            </div>
+
+            <button class="btn btn-primary" onclick="register()">Join</button>
+        </div>
+    </div>
+
+    <!-- ── Screen 2: Lobby ─────────────────────────────────────────── -->
+    <div id="screen-lobby" class="screen">
+        <div class="card">
+            <div class="card-title" id="lobbyGreeting">Welcome!</div>
+
+            <div class="stats-row" id="lobbyStats">
+                <div class="stat-box">
+                    <div class="stat-val" id="statWins">—</div>
+                    <div class="stat-label">Wins</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="statLosses">—</div>
+                    <div class="stat-label">Losses</div>
+                </div>
+            </div>
+
+            <h2 style="font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">
+                Choose Match Type
+            </h2>
+
+            <div class="match-card" onclick="joinRandom()">
+                <div class="mc-title">⚡ Random Match</div>
+                <div class="mc-desc">Get matched with a random player (or a bot if no one's around)</div>
+            </div>
+
+            <div class="match-card" onclick="showCreatePrivate()">
+                <div class="mc-title">🔗 Create Private Room</div>
+                <div class="mc-desc">Generate a code and share it with a friend</div>
+            </div>
+
+            <div class="match-card" onclick="showJoinPrivate()">
+                <div class="mc-title">🎯 Join Private Room</div>
+                <div class="mc-desc">Enter a room code from a friend</div>
+            </div>
+
+            <!-- Private room panels (initially hidden) -->
+            <div id="createRoomPanel" style="display:none; margin-top:16px">
+                <div class="room-code-display" id="roomCodeDisplay">------</div>
+                <div class="card-sub" style="text-align:center">Share this code with your friend</div>
+                <button class="btn btn-secondary" onclick="hideRoomPanels()">Cancel</button>
+            </div>
+
+            <div id="joinRoomPanel" style="display:none; margin-top:16px">
+                <div class="form-group">
+                    <label class="field-label">Room Code</label>
+                    <input type="text" id="joinCodeInput" class="code-input" placeholder="ABC123" maxlength="6"
+                           oninput="this.value=this.value.toUpperCase()"
+                           onkeydown="if(event.key==='Enter') joinPrivate()">
+                    <div class="error-msg" id="joinError"></div>
+                </div>
+                <button class="btn btn-primary" onclick="joinPrivate()">Join Room</button>
+                <button class="btn btn-secondary" onclick="hideRoomPanels()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Screen 2b: Waiting for match ────────────────────────────── -->
+    <div id="screen-waiting" class="screen">
+        <div class="card" style="text-align:center">
+            <div class="spinner"></div>
+            <div class="card-title">Finding Opponent...</div>
+            <div class="card-sub" id="waitingMsg">Searching for a player. A bot will join if no one is found in 10 seconds.</div>
+            <button class="btn btn-outline" style="margin-top:24px" onclick="cancelWaiting()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- ── Screen 3: Round ─────────────────────────────────────────── -->
+    <div id="screen-round" class="screen">
+        <div class="card">
+            <div class="round-header">
+                <span class="round-badge" id="roundLabel">Round 1 / 5</span>
+                <div class="timer-wrap">
+                    <div class="timer-bar-track">
+                        <div class="timer-bar" id="timerBar" style="width:100%"></div>
+                    </div>
+                    <span class="timer-val" id="timerVal">10</span>
+                </div>
+            </div>
+
+            <div class="question-text" id="questionText">Loading question...</div>
+
+            <div id="answersArea">
+                <!-- Answer buttons injected by JS -->
+            </div>
+
+            <!-- After answering -->
+            <div id="roundResultMsg" class="round-result-msg" style="display:none"></div>
+
+            <div class="opponent-status" id="opponentStatus" style="display:none"></div>
+        </div>
+    </div>
+
+    <!-- ── Screen 4: Results ────────────────────────────────────────── -->
+    <div id="screen-results" class="screen">
+        <div class="card">
+            <div class="score-banner pending" id="scoreBanner">
+                <div class="outcome" id="outcomeLabel">Waiting for opponent...</div>
+                <div class="score-display" id="scoreDisplay">—</div>
+                <div class="score-label" id="opponentNameLabel"></div>
+            </div>
+
+            <div class="waiting-opp" id="oppWaiting">
+                <div class="spinner" style="width:32px;height:32px;border-width:3px;margin-bottom:12px"></div>
+                Opponent is still playing...
+            </div>
+
+            <div class="rounds-table" id="roundsTable" style="display:none">
+                <div class="rt-header">
+                    <span>Round</span>
+                    <span>You</span>
+                    <span id="rtOppHeader">Opponent</span>
+                </div>
+                <div id="rtBody"></div>
+            </div>
+
+            <button class="btn btn-primary" id="playAgainBtn" style="display:none" onclick="playAgain()">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // ══════════════════════════════════════════════════════════════════════
+    //  STATE
+    // ══════════════════════════════════════════════════════════════════════
+    const state = {
+        playerId: null,
+        playerName: null,
+        matchId: null,
+        opponentName: null,
+        totalRounds: 5,
+        currentRound: null,
+        roundData: null,
+        myRounds: [],           // {roundNumber, correct, yourAnswerId, correctAnswerId}
+        opponentRounds: null,   // null until opponent finishes
+        roundQuestions: {},     // roundNumber → questionText
+        opponentDone: false,
+        opponentScore: null,
+        winnerId: null,
+        timerInterval: null,
+        timerLeft: 10,
+        answered: false,
+    };
+
+    let stompClient = null;
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  SCREENS
+    // ══════════════════════════════════════════════════════════════════════
+    function show(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('screen-' + id).classList.add('active');
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  SCREEN 1 — REGISTER
+    // ══════════════════════════════════════════════════════════════════════
+    async function register() {
+        const name = document.getElementById('nameInput').value.trim();
+        const errEl = document.getElementById('registerError');
+        errEl.classList.remove('show');
+
+        if (name.length < 2) {
+            errEl.textContent = 'Name must be at least 2 characters.';
+            errEl.classList.add('show');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/v1/players', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const player = await res.json();
+            state.playerId = player.id;
+            state.playerName = player.name;
+            connectWebSocket();
+            showLobby(player);
+        } catch (e) {
+            errEl.textContent = 'Error: ' + e.message;
+            errEl.classList.add('show');
+        }
+    }
+
+    function showLobby(player) {
+        document.getElementById('lobbyGreeting').textContent = 'Hey, ' + player.name + '!';
+        document.getElementById('statWins').textContent = player.wins;
+        document.getElementById('statLosses').textContent = player.losses;
+        show('lobby');
+    }
+
+    async function refreshStats() {
+        if (!state.playerId) return;
+        try {
+            const res = await fetch('/api/v1/players/' + state.playerId);
+            const p = await res.json();
+            document.getElementById('statWins').textContent = p.wins;
+            document.getElementById('statLosses').textContent = p.losses;
+        } catch (_) {}
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  WEBSOCKET
+    // ══════════════════════════════════════════════════════════════════════
+    function connectWebSocket() {
+        stompClient = new StompJs.Client({
+            brokerURL: 'ws://' + location.host + '/ws',
+            connectHeaders: { playerId: state.playerId },
+            debug: () => {},
+            onConnect: function () {
+                stompClient.subscribe('/topic/player/' + state.playerId, function (frame) {
+                    const msg = JSON.parse(frame.body);
+                    handleWsMessage(msg.type, msg.payload);
+                });
+            },
+            onStompError: function (err) {
+                console.error('WS error', err);
+            }
+        });
+        stompClient.activate();
+    }
+
+    function handleWsMessage(type, payload) {
+        switch (type) {
+            case 'MATCH_FOUND':   onMatchFound(payload);   break;
+            case 'ROUND_START':   onRoundStart(payload);   break;
+            case 'ROUND_END':     onRoundEnd(payload);     break;
+            case 'MATCH_END':     onMatchEnd(payload);     break;
+            case 'MATCH_UPDATED': onMatchUpdated(payload); break;
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  SCREEN 2 — LOBBY ACTIONS
+    // ══════════════════════════════════════════════════════════════════════
+    async function joinRandom() {
+        hideRoomPanels();
+        show('waiting');
+        document.getElementById('waitingMsg').textContent =
+            'Searching for a player. A bot will join if no one is found in 10 seconds.';
+        try {
+            await fetch('/api/v1/matches/random?playerId=' + state.playerId, { method: 'POST' });
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function showCreatePrivate() {
+        hideRoomPanels();
+        try {
+            const res = await fetch('/api/v1/matches/private?playerId=' + state.playerId, { method: 'POST' });
+            const data = await res.json();
+            document.getElementById('roomCodeDisplay').textContent = data.roomCode || '------';
+            document.getElementById('createRoomPanel').style.display = 'block';
+            show('waiting');
+            document.getElementById('waitingMsg').textContent =
+                'Share the code above with a friend. Waiting for them to join...';
+        } catch (e) { console.error(e); }
+    }
+
+    function showJoinPrivate() {
+        hideRoomPanels();
+        document.getElementById('joinRoomPanel').style.display = 'block';
+    }
+
+    async function joinPrivate() {
+        const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+        const errEl = document.getElementById('joinError');
+        errEl.classList.remove('show');
+
+        if (code.length !== 6) {
+            errEl.textContent = 'Code must be 6 characters.';
+            errEl.classList.add('show');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/v1/matches/private/${code}/join?playerId=${state.playerId}`, { method: 'POST' });
+            const data = await res.json();
+            if (data.status === 'NOT_FOUND') {
+                errEl.textContent = 'Room not found. Check the code.';
+                errEl.classList.add('show');
+                return;
+            }
+            hideRoomPanels();
+            show('waiting');
+            document.getElementById('waitingMsg').textContent = 'Joined! Waiting for match to start...';
+        } catch (e) {
+            errEl.textContent = 'Error: ' + e.message;
+            errEl.classList.add('show');
+        }
+    }
+
+    function hideRoomPanels() {
+        document.getElementById('createRoomPanel').style.display = 'none';
+        document.getElementById('joinRoomPanel').style.display = 'none';
+    }
+
+    function cancelWaiting() {
+        show('lobby');
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  WS HANDLERS
+    // ══════════════════════════════════════════════════════════════════════
+    function onMatchFound(payload) {
+        state.matchId = payload.matchId;
+        state.opponentName = payload.opponentName;
+        state.myRounds = [];
+        state.opponentRounds = null;
+        state.roundQuestions = {};
+        state.opponentDone = false;
+        state.opponentScore = null;
+        state.winnerId = null;
+        // Round start will follow immediately from server
+    }
+
+    function onRoundStart(payload) {
+        state.roundData = payload;
+        state.totalRounds = payload.totalRounds;
+        state.currentRound = payload.roundNumber;
+        state.answered = false;
+        state.roundQuestions[payload.roundNumber] = payload.questionText;
+        renderRound(payload);
+        show('round');
+        startTimer(payload.timeoutSeconds);
+    }
+
+    function onRoundEnd(payload) {
+        clearTimer();
+        state.answered = true;
+
+        // Highlight correct / wrong answer
+        const buttons = document.querySelectorAll('.btn-answer');
+        buttons.forEach(btn => {
+            btn.classList.add('revealed');
+            if (btn.dataset.id === payload.correctAnswerId) {
+                btn.classList.add('correct');
+            } else if (btn.dataset.id === payload.yourAnswerId && !payload.correct) {
+                btn.classList.add('wrong');
+            }
+        });
+
+        // Result message
+        const msgEl = document.getElementById('roundResultMsg');
+        if (payload.yourAnswerId === null || payload.yourAnswerId === undefined) {
+            msgEl.className = 'round-result-msg result-timeout';
+            msgEl.textContent = '⏱ Time\'s up!';
+        } else if (payload.correct) {
+            msgEl.className = 'round-result-msg result-correct';
+            msgEl.textContent = '✓ Correct!';
+        } else {
+            msgEl.className = 'round-result-msg result-wrong';
+            msgEl.textContent = '✗ Wrong!';
+        }
+        msgEl.style.display = 'block';
+
+        state.myRounds.push({
+            roundNumber: payload.roundNumber,
+            correct: payload.correct,
+            yourAnswerId: payload.yourAnswerId,
+            correctAnswerId: payload.correctAnswerId
+        });
+    }
+
+    function onMatchEnd(payload) {
+        clearTimer();
+        state.myRounds = payload.rounds;
+        state.opponentDone = payload.opponentFinished;
+        state.opponentScore = payload.opponentScore;
+        state.winnerId = payload.winnerId;
+        if (payload.opponentRounds) state.opponentRounds = payload.opponentRounds;
+
+        show('results');
+        document.getElementById('rtOppHeader').textContent = payload.opponentName || state.opponentName || 'Opponent';
+        renderComparison(state.myRounds, state.opponentRounds);
+
+        if (payload.opponentFinished) {
+            renderScoreBanner(payload.yourScore, payload.opponentScore, payload.winnerId, payload.opponentName);
+            document.getElementById('oppWaiting').style.display = 'none';
+            document.getElementById('playAgainBtn').style.display = 'block';
+        } else {
+            document.getElementById('outcomeLabel').textContent = 'You finished!';
+            document.getElementById('scoreDisplay').textContent = payload.yourScore + ' pts';
+            document.getElementById('opponentNameLabel').textContent = 'Waiting for ' + payload.opponentName + '...';
+            document.getElementById('oppWaiting').style.display = 'block';
+            document.getElementById('playAgainBtn').style.display = 'none';
+        }
+    }
+
+    function onMatchUpdated(payload) {
+        state.opponentDone = true;
+        state.opponentRounds = payload.opponentRounds;
+        state.opponentScore = payload.opponentScore;
+        state.winnerId = payload.winnerId;
+
+        renderComparison(state.myRounds, state.opponentRounds);
+        renderScoreBanner(state.myRounds.filter(r => r.correct).length, payload.opponentScore, payload.winnerId, state.opponentName);
+
+        document.getElementById('oppWaiting').style.display = 'none';
+        document.getElementById('playAgainBtn').style.display = 'block';
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  ROUND RENDERING
+    // ══════════════════════════════════════════════════════════════════════
+    function renderRound(payload) {
+        document.getElementById('roundLabel').textContent =
+            'Round ' + payload.roundNumber + ' / ' + payload.totalRounds;
+        document.getElementById('questionText').textContent = payload.questionText;
+        document.getElementById('roundResultMsg').style.display = 'none';
+        document.getElementById('opponentStatus').style.display = 'none';
+
+        const area = document.getElementById('answersArea');
+        area.innerHTML = '';
+
+        const sorted = [...payload.answers].sort((a, b) => a.position - b.position);
+        sorted.forEach(ans => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-answer';
+            btn.textContent = ans.text;
+            btn.dataset.id = ans.id;
+            btn.onclick = () => submitAnswer(ans.id, btn);
+            area.appendChild(btn);
+        });
+    }
+
+    function submitAnswer(answerId, btn) {
+        if (state.answered) return;
+        state.answered = true;
+        clearTimer();
+
+        // Visual feedback — selected
+        document.querySelectorAll('.btn-answer').forEach(b => {
+            b.classList.add('revealed');
+            if (b === btn) b.classList.add('selected');
+        });
+
+        // Send via STOMP
+        stompClient.publish({ destination: '/app/match/answer', body: JSON.stringify({
+            matchId: state.matchId,
+            roundNumber: state.currentRound,
+            answerId: answerId
+        }) });
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  TIMER
+    // ══════════════════════════════════════════════════════════════════════
+    function startTimer(seconds) {
+        clearTimer();
+        state.timerLeft = seconds;
+        updateTimerUI(seconds, seconds);
+
+        state.timerInterval = setInterval(() => {
+            state.timerLeft--;
+            updateTimerUI(state.timerLeft, seconds);
+
+            if (state.timerLeft <= 0) {
+                clearTimer();
+                if (!state.answered) {
+                    // Server will auto-process timeout; just update UI
+                    state.answered = true;
+                    document.querySelectorAll('.btn-answer').forEach(b => b.classList.add('revealed'));
+                }
+            }
+        }, 1000);
+    }
+
+    function updateTimerUI(left, total) {
+        document.getElementById('timerVal').textContent = left;
+        const pct = (left / total) * 100;
+        const bar = document.getElementById('timerBar');
+        bar.style.width = pct + '%';
+
+        if (pct > 50) {
+            bar.style.background = 'var(--green)';
+        } else if (pct > 25) {
+            bar.style.background = 'var(--yellow)';
+        } else {
+            bar.style.background = 'var(--red)';
+        }
+    }
+
+    function clearTimer() {
+        if (state.timerInterval) {
+            clearInterval(state.timerInterval);
+            state.timerInterval = null;
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  RESULTS RENDERING
+    // ══════════════════════════════════════════════════════════════════════
+    function renderScoreBanner(myScore, oppScore, winnerId, opponentName) {
+        const banner = document.getElementById('scoreBanner');
+        const outcomeEl = document.getElementById('outcomeLabel');
+        const scoreEl = document.getElementById('scoreDisplay');
+        const labelEl = document.getElementById('opponentNameLabel');
+
+        scoreEl.textContent = myScore + ' — ' + oppScore;
+        labelEl.textContent = 'You vs ' + (opponentName || state.opponentName || 'Opponent');
+
+        if (winnerId === null || winnerId === undefined) {
+            banner.className = 'score-banner draw';
+            outcomeEl.textContent = '🤝 Draw!';
+        } else if (winnerId === state.playerId) {
+            banner.className = 'score-banner win';
+            outcomeEl.textContent = '🏆 You Win!';
+        } else {
+            banner.className = 'score-banner lose';
+            outcomeEl.textContent = '💀 You Lose!';
+        }
+    }
+
+    function roundCell(round) {
+        if (!round) return '<div class="rt-cell pending">—</div>';
+        const r = round;
+        if (!r.yourAnswerId) {
+            return '<div class="rt-cell timeout"><span class="dot"></span>Timeout</div>';
+        } else if (r.correct) {
+            return '<div class="rt-cell correct"><span class="dot"></span>Correct</div>';
+        } else {
+            return '<div class="rt-cell wrong"><span class="dot"></span>Wrong</div>';
+        }
+    }
+
+    function renderComparison(myRounds, opponentRounds) {
+        if (!myRounds || !myRounds.length) return;
+        const table = document.getElementById('roundsTable');
+        const body = document.getElementById('rtBody');
+        body.innerHTML = '';
+        table.style.display = '';
+
+        myRounds.forEach(myR => {
+            const oppR = opponentRounds ? opponentRounds.find(r => r.roundNumber === myR.roundNumber) : null;
+            const qText = state.roundQuestions[myR.roundNumber] || '';
+            const row = document.createElement('div');
+            row.className = 'rt-row';
+            row.innerHTML = `
+                <div class="rt-num" title="${qText}">R${myR.roundNumber}</div>
+                ${roundCell(myR)}
+                ${roundCell(oppR)}
+            `;
+            body.appendChild(row);
+        });
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  PLAY AGAIN
+    // ══════════════════════════════════════════════════════════════════════
+    async function playAgain() {
+        await refreshStats();
+        show('lobby');
+    }
+</script>
+</body>
+</html>

@@ -1,4 +1,26 @@
 spring:
   application:
     name: quiz-battle-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5432/quizbattle
+    username: postgres
+    password: password
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    locations: classpath:db/migration
+  sql:
+    init:
+      mode: always
 
+app:
+  matchmaking:
+    queue-timeout-seconds: 10
+    rounds-per-match: 5
+    round-timeout-seconds: 10
+  bot:
+    correct-answer-probability: 0.5
+    min-answer-delay-seconds: 2
+    max-answer-delay-seconds: 9
