@@ -25,7 +25,7 @@ A match consists of 5 rounds. Each round presents one question with 4 answer opt
 
 - Java 21+
 - PostgreSQL running on `localhost:5432`
-- A database named `quizbattle` with user `postgres` / password `postgres`
+- A database named `quizbattle` with user `postgres` / password `password`
 
 ```sql
 CREATE DATABASE quizbattle;
