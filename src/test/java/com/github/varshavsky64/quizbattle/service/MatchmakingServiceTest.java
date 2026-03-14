@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.github.varshavsky64.quizbattle.service.impl.MatchmakingServiceImpl;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -28,7 +29,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
-@Import(MatchmakingService.class)
+@Import(MatchmakingServiceImpl.class)
 @DisplayName("Private room creation and random matchmaking")
 class MatchmakingServiceTest {
 

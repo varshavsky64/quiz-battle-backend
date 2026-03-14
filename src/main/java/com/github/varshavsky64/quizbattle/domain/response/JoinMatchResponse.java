@@ -6,6 +6,6 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class JoinMatchResponse {
-    private String status; // "WAITING" or "MATCHED"
-    private String roomCode; // for private rooms
+    private JoinMatchStatus status;
+    private String roomCode;
 }

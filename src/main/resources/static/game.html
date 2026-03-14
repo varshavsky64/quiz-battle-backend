@@ -397,6 +397,53 @@
             font-size: 0.9rem;
         }
 
+        /* ── Match History ──────────────────────────────────────────── */
+        .history-section {
+            margin-top: 24px;
+        }
+
+        .history-title {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .history-item {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+        }
+
+        .history-item .h-opponent { color: var(--text); font-weight: 500; }
+        .history-item .h-score   { color: var(--muted); }
+        .history-item .h-outcome {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 99px;
+            text-transform: uppercase;
+        }
+        .h-outcome.win  { background: #14532d; color: #bbf7d0; }
+        .h-outcome.lose { background: #7f1d1d; color: #fecaca; }
+        .h-outcome.draw { background: #292524; color: var(--muted); }
+
+        .history-empty {
+            color: var(--dim);
+            font-size: 0.85rem;
+            text-align: center;
+            padding: 12px 0;
+        }
+
         /* ── Private room code input ────────────────────────────────── */
         .code-input {
             text-align: center;
@@ -483,6 +530,12 @@
             <div class="match-card" onclick="showJoinPrivate()">
                 <div class="mc-title">🎯 Join Private Room</div>
                 <div class="mc-desc">Enter a room code from a friend</div>
+            </div>
+
+            <!-- Match History -->
+            <div class="history-section" id="historySection" style="display:none">
+                <div class="history-title">Recent Matches</div>
+                <div id="historyList"></div>
             </div>
 
             <!-- Private room panels (initially hidden) -->
@@ -643,6 +696,38 @@
         document.getElementById('statWins').textContent = player.wins;
         document.getElementById('statLosses').textContent = player.losses;
         show('lobby');
+        loadHistory();
+    }
+
+    async function loadHistory(page = 0, size = 5) {
+        try {
+            const res = await fetch(`/api/v1/matches/player/${state.playerId}?page=${page}&size=${size}`);
+            const data = await res.json();
+            const section = document.getElementById('historySection');
+            const list = document.getElementById('historyList');
+
+            if (data.totalElements === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            list.innerHTML = '';
+
+            data.content.forEach(m => {
+                const outcome = m.winnerId === null ? 'draw'
+                    : m.winnerId === state.playerId ? 'win' : 'lose';
+                const outcomeLabel = outcome === 'win' ? 'Win' : outcome === 'lose' ? 'Lose' : 'Draw';
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <span class="h-opponent">${m.opponentName}${m.bot ? ' 🤖' : ''}</span>
+                    <span class="h-score">${new Date(m.startedAt).toLocaleDateString()}</span>
+                    <span class="h-outcome ${outcome}">${outcomeLabel}</span>
+                `;
+                list.appendChild(item);
+            });
+        } catch (_) {}
     }
 
     async function refreshStats() {
@@ -1008,6 +1093,7 @@
     async function playAgain() {
         await refreshStats();
         show('lobby');
+        loadHistory();
     }
 </script>
 </body>
